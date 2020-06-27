@@ -71,7 +71,7 @@ bool blinked = false;
 
 void setupScrollArea(uint16_t tfa, uint16_t bfa);
 
-#include "i2ckb.h"
+#include "i2ckbd.h"
 
 void setup() {
   M5.begin();
@@ -99,7 +99,7 @@ void setup() {
 
   vt100_init(response);
 
-  i2ckb_init();
+  i2ckbd_init();
 
   prev_millis = millis();
 }
@@ -132,11 +132,13 @@ void loop(void) {
 #endif
 
   int c;
-  while ((c = i2ckb_get()) >= 0) {
+  while ((c = i2ckbd_get()) >= 0) {
     //M5.Lcd.printf("[%d]", c);
     SerialPort.write(c);
+    if (c < ' ' || c > 0x7E) {
+      M5.Lcd.printf("[%02X]", c);
+    }
   }
-  delay(10);
 }
 
 /* Two ili9341 functions taken from TFT_Terminal program.  */
