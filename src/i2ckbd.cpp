@@ -2,15 +2,16 @@
 #include "i2ckbd.h"
 
 #define FACES_KEYBOARD_I2C_ADDR 0x08
+#define CARDKB_I2C_ADDR 0x5F
 #define I2CKBD_MAXBUF 128
 
 static uint8_t i2ckbd_buffer[I2CKBD_MAXBUF];
 static int i2ckbd_readpos = 0;
 static int i2ckbd_writepos = 0;
+static enum I2CKBD_MODE i2ckbd_mode = I2CKBD_NONE;
 
 const char *convert_faceskbd(int c);
-
-static const char *(*converter)(int) = convert_faceskbd;
+const char *convert_cardkbd(int c);
 
 void i2ckbd_init()
 {
@@ -19,16 +20,14 @@ void i2ckbd_init()
   digitalWrite(5,HIGH);
 }
 
-void i2ckbd_select(int mode)
+void i2ckbd_setmode(int mode)
 {
-  switch (mode) {
-  case I2CKBD_FACESKBD:
-    converter = convert_faceskbd;
-    break;
-  default:
-    converter = NULL;
-    break;
-  }
+  i2ckbd_mode = (enum I2CKBD_MODE) mode;
+}
+
+int i2ckbd_getmode()
+{
+  return (int) i2ckbd_mode;
 }
 
 int i2ckbd_readchar()
@@ -49,11 +48,17 @@ void i2ckbd_writechar(uint8_t c)
 
 void i2ckbd_convertchar(uint8_t c)
 {
-  if (converter == NULL) {
-    i2ckbd_writechar(c);
-    return;
+  const char *pattern = NULL;
+  switch (i2ckbd_mode) {
+  case I2CKBD_FACESKBD:
+    pattern = convert_faceskbd(c);
+    break;
+  case I2CKBD_CARDKBD:
+    pattern = convert_cardkbd(c);
+    break;
+  default:
+    break;
   }
-  const char *pattern = (*converter)(c);
   if (pattern == NULL) {
     i2ckbd_writechar(c);
     return;
@@ -69,14 +74,29 @@ int i2ckbd_get()
   if (c >= 0) {
     return c;
   }
-  if (digitalRead(5) == LOW)
-  {
-    Wire.requestFrom(FACES_KEYBOARD_I2C_ADDR, 1);
+  switch (i2ckbd_mode) {
+  case I2CKBD_FACESKBD:
+    if (digitalRead(5) == LOW)
+    {
+      Wire.requestFrom(FACES_KEYBOARD_I2C_ADDR, 1);
+      while (Wire.available())
+      {
+        i2ckbd_convertchar(Wire.read());
+      }
+    }
+    break;
+  case I2CKBD_CARDKBD:
+    Wire.requestFrom(CARDKB_I2C_ADDR, 1);
     while (Wire.available())
     {
-      i2ckbd_convertchar(Wire.read());
+      int c = Wire.read();
+      if (c > 0) {
+        i2ckbd_convertchar(c);
+      }
     }
-    delay(10);
+    break;
+  default:
+    break;
   }
   return i2ckbd_readchar();
 }

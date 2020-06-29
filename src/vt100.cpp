@@ -70,6 +70,12 @@ unsigned long prev_millis, elapsed_millis;
 bool blinked = false;
 
 void setupScrollArea(uint16_t tfa, uint16_t bfa);
+void set_uart(const char *str);
+int current_baudrate();
+const char *current_keyboard();
+void show_status();
+void toggle_keyboard();
+void toggle_baudrate();
 
 #include "i2ckbd.h"
 
@@ -81,17 +87,21 @@ void setup() {
 #ifdef SERIAL2
   // Serial2.begin(unsigned long baud, uint32_t config, int8_t rxPin, int8_t txPin, bool invert)
   SerialPort.begin(115200, SERIAL_8N1, 16, 17);
-  char *serial_status = " UART2 115200 baud ";
+  //char *serial_status = " UART2 115200 baud ";
+  set_uart("UART2");
 #else
-  char *serial_status = " UART 115200 baud ";
+  //char *serial_status = " UART 115200 baud ";
+  set_uart("UART");
 #endif
-  
+
+#if 0
   M5.Lcd.setTextColor(TFT_WHITE, TFT_GREY);
   M5.Lcd.fillRect(0, VT100_SCREEN_HEIGHT-VT100_STATUS_AREA,
 		  VT100_SCREEN_WIDTH, VT100_STATUS_AREA, TFT_GREY);
   M5.Lcd.drawRightString(serial_status,
 			 VT100_SCREEN_WIDTH,
 			 VT100_SCREEN_HEIGHT-VT100_STATUS_AREA+4, textSize);
+#endif
 
   M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
 
@@ -100,6 +110,8 @@ void setup() {
   vt100_init(response);
 
   i2ckbd_init();
+  i2ckbd_setmode(I2CKBD_NONE);
+  show_status();
 
   prev_millis = millis();
 }
@@ -135,9 +147,17 @@ void loop(void) {
   while ((c = i2ckbd_get()) >= 0) {
     //M5.Lcd.printf("[%d]", c);
     SerialPort.write(c);
-    if (c < ' ' || c > 0x7E) {
+    if (c > 0x7E) {
       M5.Lcd.printf("[%02X]", c);
     }
+  }
+
+  M5.update();
+  if (M5.BtnA.wasPressed()) {
+    toggle_keyboard();
+  }
+  if (M5.BtnC.wasPressed()) {
+    toggle_baudrate();
   }
 }
 
@@ -1077,3 +1097,54 @@ void vt100_restore_cursor(void) {
       M5.Lcd.drawPixel(x+i,y+j,cursor_pixels[VT100_CHAR_HEIGHT*i + j]);
 }
 #endif
+
+const char *uart = "None";
+char *keyboards[] = { "None", "Faces", "CardKB", "Invalid" };
+int baudrates[] = {2400, 4800, 9600, 19200, 38400, 57600, 115200};
+int baudrate_num = 7;
+int baudrate_index = 6;
+
+void set_uart(const char *str)
+{
+  uart = str;
+}
+
+int current_baudrate()
+{
+  return baudrates[baudrate_index];
+}
+
+const char *current_keyboard()
+{
+  return keyboards[i2ckbd_getmode()];
+}
+
+void show_status()
+{
+  char tmp[256];
+
+  sprintf(tmp, " %s %s %d ", current_keyboard(), uart, current_baudrate());
+  M5.Lcd.setTextColor(TFT_WHITE, TFT_GREY);
+  M5.Lcd.fillRect(0, VT100_SCREEN_HEIGHT-VT100_STATUS_AREA,
+		  VT100_SCREEN_WIDTH, VT100_STATUS_AREA, TFT_GREY);
+  M5.Lcd.drawRightString(tmp,
+			 VT100_SCREEN_WIDTH,
+			 VT100_SCREEN_HEIGHT-VT100_STATUS_AREA+4, textSize);
+}
+
+void toggle_keyboard()
+{
+  int mode = i2ckbd_getmode();
+  int num = I2CKBD_NUM;
+
+  mode = (mode + 1) % num;
+  i2ckbd_setmode(mode);
+  show_status();
+}
+
+void toggle_baudrate()
+{
+  baudrate_index = (baudrate_index + 1) % baudrate_num;
+  SerialPort.updateBaudRate(current_baudrate());
+  show_status();
+}
