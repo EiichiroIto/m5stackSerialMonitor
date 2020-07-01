@@ -26,6 +26,7 @@
 */
 
 #include <M5Stack.h>
+#include "M5StackUpdater.h"
 
 // If set, use Serial2 as terminal input
 //#define SERIAL2 1
@@ -81,7 +82,17 @@ void toggle_baudrate();
 
 void setup() {
   M5.begin();
+  Wire.begin();
 
+  M5.Lcd.fillScreen(TFT_BLACK);
+  M5.Lcd.println("Starting...");
+  delay(1000);
+
+  if (digitalRead(BUTTON_A_PIN) == 0) {
+    Serial.println("Will Load menu binary");
+    updateFromFS(SD);
+    ESP.restart();
+  }
   M5.Lcd.fillScreen(TFT_BLACK);
 
 #ifdef SERIAL2
@@ -1099,7 +1110,7 @@ void vt100_restore_cursor(void) {
 #endif
 
 const char *uart = "None";
-char *keyboards[] = { "None", "Faces", "CardKB", "Invalid" };
+const char *keyboards[] = { "None", "Faces", "CardKB", "Invalid" };
 int baudrates[] = {2400, 4800, 9600, 19200, 38400, 57600, 115200};
 int baudrate_num = 7;
 int baudrate_index = 6;
